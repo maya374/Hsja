@@ -1,0 +1,257 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Maya Snake Game</title>
+  <style>
+    body {
+      background-color: #000;
+      color: white;
+      text-align: center;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      background-color: #111;
+      display: block;
+      margin: 10px auto;
+      border: 2px solid white;
+      width: 90vw;
+      max-width: 400px;
+      height: auto;
+      touch-action: none;
+    }
+    .controls, .options {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 10px auto;
+    }
+    .dpad {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .dpad-row {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #222;
+      color: white;
+      border: 2px solid #555;
+      border-radius: 8px;
+    }
+    .btn:active {
+      background: #444;
+    }
+    #score, #highScore {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🐍 Maya Snake Game</h1>
+  <div id="score">Score: 0</div>
+  <div id="highScore">High Score: 0</div>
+  <canvas id="game"></canvas>
+  <p style="font-size:14px;color:#aaa;">Swipe on the game area to move the snake on mobile</p>  <div class="dpad">
+    <button class="btn" onclick="move('up')">⬆️</button>
+    <div class="dpad-row">
+      <button class="btn" onclick="move('left')">⬅️</button>
+      <button class="btn" onclick="move('down')">⬇️</button>
+      <button class="btn" onclick="move('right')">➡️</button>
+    </div>
+  </div>  <div class="controls">
+    <button class="btn" onclick="togglePause()">⏸️ Pause</button>
+    <button class="btn" onclick="resetGame()">🔁 Restart</button>
+    <button class="btn" onclick="toggleTheme()">🌓 Theme</button>
+    <button class="btn" onclick="toggleMusic()">🎵 Music</button>
+    <button class="btn" onclick="saveGame()">💾 Save Game</button>
+    <button class="btn" onclick="loadGame()">📂 Load Game</button>
+    <button class="btn">👬 Multiplayer</button>
+  </div>  <div class="options">
+    <label for="difficulty">🎮 Difficulty:</label>
+    <select id="difficulty" onchange="setDifficulty(this.value)">
+      <option value="14">Easy</option>
+      <option value="10" selected>Normal</option>
+      <option value="6">Hard</option>
+    </select>
+    <label for="snakeColor" style="margin-left: 10px;">🐍 Color:</label>
+    <select id="snakeColor" onchange="changeSnakeColor(this.value)">
+      <option value="lime">Green</option>
+      <option value="cyan">Cyan</option>
+      <option value="yellow">Yellow</option>
+      <option value="magenta">Pink</option>
+    </select>
+  </div><audio id="eatSound" src="https://www.soundjay.com/button/beep-07.wav"></audio> <audio id="deadSound" src="https://www.soundjay.com/button/beep-10.wav"></audio> <audio id="bgMusic" src="https://www.bensound.com/bensound-music/bensound-dubstep.mp3" loop></audio>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientWidth;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    let grid = 20;
+    let count = 0;
+    let speed = 10;
+    let paused = false;
+    let score = 0;
+    let highScore = localStorage.getItem("snakeHighScore") || 0;
+    let snakeColor = "lime";
+    document.getElementById("highScore").innerText = "High Score: " + highScore;
+
+    const scoreText = document.getElementById("score");
+    const highScoreText = document.getElementById("highScore");
+    const eatSound = document.getElementById("eatSound");
+    const deadSound = document.getElementById("deadSound");
+    const bgMusic = document.getElementById("bgMusic");
+
+    let snake = {
+      x: 160,
+      y: 160,
+      dx: grid,
+      dy: 0,
+      cells: [],
+      maxCells: 4
+    };
+
+    let apple = {
+      x: 320,
+      y: 320
+    };
+
+    function getRandomInt(min, max) {
+      return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    function placeApple() {
+      apple.x = getRandomInt(0, canvas.width / grid) * grid;
+      apple.y = getRandomInt(0, canvas.height / grid) * grid;
+    }
+
+    function togglePause() {
+      paused = !paused;
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("light");
+      document.body.style.backgroundColor = document.body.classList.contains("light") ? "#fff" : "#000";
+      document.body.style.color = document.body.classList.contains("light") ? "#000" : "#fff";
+    }
+
+    function toggleMusic() {
+      if (bgMusic.paused) bgMusic.play();
+      else bgMusic.pause();
+    }
+
+    function setDifficulty(val) {
+      speed = parseInt(val);
+    }
+
+    function changeSnakeColor(val) {
+      snakeColor = val;
+    }
+
+    function move(dir) {
+      if (dir === "left" && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+      else if (dir === "right" && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+      else if (dir === "up" && snake.dy === 0) { snake.dy = -grid; snake.dx = 0; }
+      else if (dir === "down" && snake.dy === 0) { snake.dy = grid; snake.dx = 0; }
+    }
+
+    function resetGame() {
+      deadSound.play();
+      if (score > highScore) {
+        localStorage.setItem("snakeHighScore", score);
+        highScore = score;
+        highScoreText.innerText = "High Score: " + highScore;
+      }
+      score = 0;
+      scoreText.innerText = "Score: 0";
+      snake.x = 160;
+      snake.y = 160;
+      snake.dx = grid;
+      snake.dy = 0;
+      snake.cells = [];
+      snake.maxCells = 4;
+      speed = parseInt(document.getElementById("difficulty").value);
+      placeApple();
+    }
+
+    function gameLoop() {
+      requestAnimationFrame(gameLoop);
+      if (paused) return;
+      if (++count < speed) return;
+      count = 0;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      snake.x += snake.dx;
+      snake.y += snake.dy;
+
+      if (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height) {
+        resetGame(); return;
+      }
+
+      snake.cells.unshift({ x: snake.x, y: snake.y });
+      if (snake.cells.length > snake.maxCells) snake.cells.pop();
+
+      ctx.fillStyle = "red";
+      ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
+
+      ctx.fillStyle = snakeColor;
+      snake.cells.forEach((cell, index) => {
+        ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
+
+        if (cell.x === apple.x && cell.y === apple.y) {
+          eatSound.play();
+          snake.maxCells++;
+          score++;
+          scoreText.innerText = "Score: " + score;
+          placeApple();
+        }
+
+        for (let i = index + 1; i < snake.cells.length; i++) {
+          if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+            resetGame(); return;
+          }
+        }
+      });
+    }
+
+    resetGame();
+    requestAnimationFrame(gameLoop);
+
+    // Swipe support
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener("touchstart", e => {
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    });
+
+    canvas.addEventListener("touchend", e => {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 20) move("right");
+        else if (dx < -20) move("left");
+      } else {
+        if (dy > 20) move("down");
+        else if (dy < -20) move("up");
+      }
+    });
+  </script></body>
+</html>
